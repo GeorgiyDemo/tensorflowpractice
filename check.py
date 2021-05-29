@@ -1,36 +1,34 @@
-import tensorflow as tf # в дальнейшем эта строка будет опускаться
-import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf  # в дальнейшем эта строка будет опускаться
 
-samples = 50 # количество точек
-packetSize = 5 # размер пакета 
-def f(x): return 2*x-3 # искомая функция
-x_0 = -2 # начало интервала
-x_l = 2 # конец интервала
-sigma = 0.5 # среднеквадратическое отклонение шума
+def main():
+    mnist = tf.keras.datasets.mnist
 
-np.random.seed(0) # делаем случайность предсказуемой (чтобы все желающие могли повторить вычисления на этом же наборе данных)
-data_x = np.arange(x_0,x_l,(x_l-x_0)/samples) # массив [-2, -1.92, -1.84, ..., 1.92, 2]
-np.random.shuffle(data_x) # перемешать, но не взбалтывать
-data_y = list(map(f, data_x)) + np.random.normal(0, sigma, samples) # массив значений функции с шумом
-print(",".join(list(map(str,data_x[:packetSize])))) # первый пакет иксов
-print(",".join(list(map(str,data_y[:packetSize])))) # и первый пакет игреков
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+    x_train, x_test = x_train / 255.0, x_test / 255.0
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Flatten(input_shape=(28, 28)),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(10)
+    ])
+    predictions = model(x_train[:1]).numpy()
+    print(predictions)
+    r = tf.nn.softmax(predictions).numpy()
+    print(r)
+    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss_fn(y_train[:1], predictions).numpy()
 
-tf_data_x = tf.placeholder(tf.float32, shape=(packetSize,)) # узел на который будем подавать аргументы функции
-tf_data_y = tf.placeholder(tf.float32, shape=(packetSize,)) # узел на который будем подавать значения функции
+    model.compile(optimizer='adam',
+                  loss=loss_fn,
+                  metrics=['accuracy'])
 
-weight = tf.Variable(initial_value=0.1, dtype=tf.float32, name="a")
-bias = tf.Variable(initial_value=0.0, dtype=tf.float32, name="b")
-model = tf.add(tf.multiply(tf_data_x, weight), bias)
+    model.fit(x_train, y_train, epochs=50)
+    model.evaluate(x_test, y_test, verbose=2)
+    probability_model = tf.keras.Sequential([
+        model,
+        tf.keras.layers.Softmax()
+    ])
+    probability_model(x_test[:5])
 
-loss = tf.reduce_mean(tf.square(model-tf_data_y)) # функция потерь, о ней ниже
-optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(loss) # метод оптимизации, о нём тоже ниже
-
-with tf.Session() as session:
-    tf.global_variables_initializer().run()
-    for i in range(samples//packetSize):
-        feed_dict={tf_data_x: data_x[i*packetSize:(i+1)*packetSize], tf_data_y: data_y[i*packetSize:(i+1)*packetSize]}
-        _, l = session.run([optimizer, loss], feed_dict=feed_dict) # запускаем оптимизатор и вычисляем "потери"
-        print("ошибка: %f" % (l, ))
-        print("a = %f, b = %f" % (weight.eval(), bias.eval()))
-    plt.plot(data_x, list(map(lambda x: weight.eval()*x+bias.eval(), data_x)), data_x, data_y, 'ro')
+if __name__ == "__main__":
+    main()
